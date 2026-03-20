@@ -59,6 +59,59 @@ byte block[8][8]=
   {0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01},
 };
 
+// CARACTERES ESPECIALES PARA NÚMEROS GRANDES
+byte LT[8] = {0x07, 0x0F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F};
+byte UB[8] = {0x1F, 0x1F, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00};
+byte RT[8] = {0x1C, 0x1E, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F};
+byte LL[8] = {0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x0F, 0x07};
+byte LB[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x1F, 0x1F, 0x1F};
+byte LR[8] = {0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1E, 0x1C};
+byte UMB[8] = {0x1F, 0x1F, 0x1F, 0x00, 0x00, 0x00, 0x1F, 0x1F};
+byte LMB[8] = {0x1F, 0x1F, 0x00, 0x00, 0x00, 0x1F, 0x1F, 0x1F};
+
+// Matriz de formas para números 0-9 (2 filas x 3 columnas)
+const byte bigFont[10][6] = {
+  {0, 1, 2, 3, 4, 5}, // 0
+  {1, 2, 32, 4, 255, 4}, // 1
+  {6, 6, 2, 3, 4, 4}, // 2
+  {6, 6, 2, 4, 4, 5}, // 3
+  {3, 4, 255, 32, 32, 5}, // 4
+  {3, 6, 6, 4, 4, 5}, // 5
+  {0, 6, 6, 3, 4, 5}, // 6
+  {1, 1, 2, 32, 32, 5}, // 7
+  {0, 6, 2, 3, 4, 5}, // 8
+  {0, 6, 2, 32, 32, 5}  // 9
+};
+
+// Función para imprimir un dígito grande
+void printBigDigit(int digit, int x) {
+  for (int i = 0; i < 3; i++) {
+    lcd.setCursor(x + i, 2);
+    lcd.write(bigFont[digit][i]);
+    lcd.setCursor(x + i, 3);
+    lcd.write(bigFont[digit][i + 3]);
+  }
+}
+
+// Función para imprimir el porcentaje completo (0-100)
+void printLargePercent(int val) {
+  int d1 = val / 100;          // Centenas
+  int d2 = (val % 100) / 10;   // Decenas
+  int d3 = val % 10;           // Unidades
+
+  if (val == 100) {
+    printBigDigit(1, 3);
+    printBigDigit(0, 7);
+    printBigDigit(0, 11);
+  } else {
+    lcd.setCursor(3, 2); lcd.print("   "); lcd.setCursor(3, 3); lcd.print("   "); // Limpiar centenas
+    if (val >= 10) printBigDigit(d2, 7);
+    else { lcd.setCursor(7, 2); lcd.print("   "); lcd.setCursor(7, 3); lcd.print("   "); }
+    printBigDigit(d3, 11);
+  }
+  lcd.setCursor(15, 3); lcd.print("%");
+}
+
 // VARIABLES GLOBALES
 int16_t cnt = 1, sub = 7, conteo = 0, conteo2 = 0, hz1, hz2, hz1_lee, hz2_lee, mod;
 int16_t temp, frec1, estadoPll, lmax[2], dly[2], modAudio;
@@ -240,6 +293,11 @@ void setup() {
   
   lcd.begin(20, 4); // CONFIGURACION DE LCD A USAR
 
+  // CARGAR CARACTERES PARA NÚMEROS GRANDES
+  lcd.createChar(0, LT); lcd.createChar(1, UB); lcd.createChar(2, RT);
+  lcd.createChar(3, LL); lcd.createChar(4, LB); lcd.createChar(5, LR);
+  lcd.createChar(6, UMB); lcd.createChar(7, LMB);
+
   // CONFIGURACION DE LOS PINES DE FRECUENCIA EN SALIDA
   int outputs[] = {PIN_1, PIN_2, PIN_3, PIN_4, PIN_5, PIN_6, PIN_7, PIN_8, PIN_9, PIN_10, PIN_11};
   for(int p : outputs) pinMode(p, OUTPUT);
@@ -253,17 +311,18 @@ void setup() {
   pinMode(PIN_ALARM_OUT, OUTPUT);
 
   // PANTALLA DE ARRANQUE DEL SISTEMA
-  lcd.setCursor(0, 0); lcd.print("     ELECTRONIC     ");
-  lcd.setCursor(0, 1); lcd.print("     LAGUNILLAS     ");
-  lcd.setCursor(0, 2); lcd.print("  FM SYSTEM'S C.A.  ");
-  lcd.setCursor(0, 3); lcd.print("    J-40745184-7    ");
+  lcd.setCursor(0, 0); lcd.print("     ELECTRONICA    ");
+  lcd.setCursor(0, 1); lcd.print("      EL AVION      ");
+  lcd.setCursor(0, 2); lcd.print("    V-20572883-6    ");
+  lcd.setCursor(0, 3); lcd.print("    MERIDA - VZLA   ");
   delay(1500);
   lcd.clear();
 
+  // LOADING CON NUMEROS GRANDES
+  lcd.setCursor(0, 0); lcd.print("   LOADING SYSTEM   ");
   for (int car = 0; car <= 100; car++) {
-    lcd.setCursor(0, 1); lcd.print("   LOADING SYSTEM   ");
-    lcd.setCursor(8, 2); lcd.print(car); lcd.print("%");
-    delay(50);
+    printLargePercent(car);
+    delay(40);
   }
   delay(100);
   lcd.clear();
