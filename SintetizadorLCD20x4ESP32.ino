@@ -24,6 +24,8 @@ const int resolution = 8; // RESOLUCION EN BITS (1-14 bits)
 const int PIN_ADC_POT = 3, PIN_ADC_REF = 9, PIN_ADC_TEMP = 10, PIN_ADC_LEVEL = 8;
 OneWire oneWire(PIN_ADC_TEMP);
 DallasTemperature sensors(&oneWire); 
+unsigned long lastTempRequest = 0;
+const int tempInterval = 1000; // Leer temperatura cada 1 segundo
 #define PIN_ADC_MOD 14 // MODULACION MPX
 #define T_REFRESH    500
 #define T_PEAKHOLD   (5 * T_REFRESH)
@@ -216,21 +218,32 @@ void set_frequency_output() {
 
 // ALARMA DE TEMPERATURA
 void alarmaTEMP() {
+  
+  // Umbral de ACTIVACIÓN (61°C o más)
   if (temp >= 61) {
     digitalWrite(PIN_ALARM_OUT, HIGH);
-    delay(10);
+    digitalWrite(PIN_PLL_OUT, LOW);
     lcd.clear();
-    while (temp > 57) {
-      temp = analogRead(PIN_ADC_TEMP) / 11;
+    // Si estamos en modo protección, mostramos el mensaje y evitamos que el programa haga otra cosa
+    while (temp > 58) {
+      monitoreoTEMP();
+      
+      lcd.setCursor(0, 0);
+      lcd.print("  !!! WARNING !!!   ");
       lcd.setCursor(0, 1);
-      lcd.print("  HIGH TEMPERATURE  ");
+      lcd.print("HIGH TEMPERATURE +60");
       lcd.setCursor(0, 2);
+      lcd.print(" READING TEMP: "); 
+      lcd.print(temp); 
+      lcd.print("C  ");
+      lcd.setCursor(0, 3);
       lcd.print(" PLEASE WAIT COOLING");
-      delay(200);
     }
-    cnt = cnt = 1;
-  }
-  if (temp <= 55){
+    lcd.clear();
+    cnt = 1;
+  } 
+  // Umbral de DESACTIVACIÓN (55°C o menos)
+  if (temp <= 55) {
     digitalWrite(PIN_ALARM_OUT, LOW);
   }
 }
@@ -267,23 +280,34 @@ void alarmaROE() {
 }
 
 // MONITOREO DE ENTRADAS ADC
-void monitoreo(){
+void monitoreoFWDyREF(){
   delay(20);
   poten = analogRead(PIN_ADC_POT) / 2;
   delay(20);
   ref = analogRead(PIN_ADC_REF) / 80;
+}
+
+void monitoreoTEMP(){
   // Lectura DS18B20
-  sensors.requestTemperatures(); // Pide la temperatura al sensor
-  float tempC = sensors.getTempCByIndex(0); // Lee el primer sensor encontrado
+  unsigned long currentMillis = millis();
   
-  // Validación simple (por si el sensor se desconecta devuelve -127)
-  if(tempC != DEVICE_DISCONNECTED_C) {
-    temp = (int16_t)tempC; 
+  if (currentMillis - lastTempRequest >= tempInterval) {
+    // Obtenemos la temperatura de la petición ANTERIOR
+    float tempC = sensors.getTempCByIndex(0);
+    
+    if (tempC != DEVICE_DISCONNECTED_C) {
+      temp = (int16_t)tempC;
+    }
+
+    // Pedimos una nueva conversión para la PRÓXIMA vez
+    sensors.requestTemperatures(); 
+    lastTempRequest = currentMillis;
   }
 }
 
 void setup() {
   sensors.begin(); // Inicializa el sensor DS18B20
+  sensors.setResolution(9); // Resolución de 9 bits (más rápida)
   sensors.setWaitForConversion(false); // Crucial: No esperar a la lectura
   ledcAttachChannel(freqPin, frequency, resolution, ledChannel); // CONFIGURACION DEL CANAL, FRECUENCIA y RESOLUCION
 
@@ -358,8 +382,8 @@ void loop() {
       hz2_lee = prefs.getInt("valorDecimal", hz2);
       
       frec1 = hz1_lee + 87;
-      
-      monitoreo();      
+      monitoreoFWDyREF();
+      monitoreoTEMP();      
 
       lcd.setCursor(0, 0); lcd.print("      OLIMPICA      ");
       lcd.setCursor(0, 1); lcd.print(" FREQ:");
@@ -418,7 +442,8 @@ void loop() {
     case 2: // MODULACION DE AUDIO
       alarmaTEMP();
       alarmaROE();
-      monitoreo();
+      monitoreoFWDyREF();
+      monitoreoTEMP();     
       temporizador();
       
       estadoPll = estadoPll = digitalRead(PIN_PLL_IN);
